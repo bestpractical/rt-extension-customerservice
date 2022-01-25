@@ -1,0 +1,207 @@
+NAME
+    RT-Extension-CustomerService - Default Customer Service configuration
+    for Request Tracker
+
+RT VERSION
+    Works with RT 4.4, 5.0
+
+INSTALLATION
+    perl Makefile.PL
+    make
+    make install
+        May need root permissions
+
+    Edit your /opt/rt5/etc/RT_SiteConfig.pm
+        Add this line:
+
+            Plugin('RT::Extension::CustomerService');
+
+        If you don't add the Plugin line and save, you will see errors in
+        the next step.
+
+    make initdb
+        Only run this the first time you install this module.
+
+        If you run this twice, you may end up with duplicate data in your
+        database.
+
+        If you are upgrading this module, check for upgrading instructions
+        in case changes need to be made to your database.
+
+    Clear your mason cache
+            rm -rf /opt/rt5/var/mason_data/obj
+
+    Restart your webserver
+
+DESCRIPTION
+    One common use for Request Tracker (RT) is tracking customer issues,
+    typically related to customer service. "Customer Service" is often a
+    department, either a designated department with many agents for large
+    organizations, or sometimes only one or two people who handle all
+    customer service for a smaller organization.
+
+    RT is used to track incoming customer service requests so they don't get
+    lost and can be assigned to individual people to handle. It's also
+    useful for gathering general reporting on the volume of customer service
+    requests and what types of problems seem to generate the most requests.
+
+    This extension provides an initialdata
+    <https://docs.bestpractical.com/rt/latest/initialdata.html/> file to
+    configure a queue with some sensible default rights configuration for a
+    typical customer service department. Once installed, you can then edit
+    the configuration to best suit your needs.
+
+  Service Queue
+    After installing, you'll see a new queue called Service for tracking all
+    of the incoming customer service requests. You can change the name to
+    anything you like after installing. In a typical configuration, you will
+    also want to assign an RT email address, like service@example.com or
+    cs@example.com to create tickets in this queue.
+
+  User Groups
+    Three new user groups are added to handle different aspects of customer
+    service: Service Representatives, Service Engineers, and Service
+    Managers.
+
+    Service Representatives are the front line of the customer service
+    department and will handle the requests as they come into the system.
+
+    Service Engineers assist the Service Representatives when an issue
+    requires a high level of product knowledge.
+
+    Service Managers review requests to ensure the customer needs are being
+    met and also to track how many requests are coming in, and what is
+    generating those requests.
+
+  Rights
+    Some typical initial rights are set on the Service queue. The system
+    group "Everyone" gets a default set of rights to allow customers to
+    create tickets. Everyone is a system group provided with RT, and as the
+    name implies it encompasses every user in RT.
+
+    <p>TODO: image for everyone group rights<img width="500px"
+    src="https://static.bestpractical.com/images/customerservice/everyone_gr
+    oup_rights.png" alt="Group rights for 'Everyone' group on 'Service'
+    queue" /></p>
+
+    These rights are usually the minimum needed for a typical customer
+    service department. Anyone is able to write into your customer service
+    address with a customer service request, and they can reply and
+    follow-up on that request if you send them some questions.
+
+    The extension also grants "ShowTicket" to the Requestor role. If your
+    end users have access to RT's self service interface, this allows them
+    to see only tickets where they are the Requestor, which should be the
+    tickets they opened.
+
+    Your staff users will need many more rights to work on tickets. To make
+    it easy to add and remove access for staff users, this extension creates
+    three new groups: Service Representatives, Service Engineers, and
+    Service Managers.
+
+    Rights are granted to these groups, so membership in the group is all a
+    user needs to get those rights.
+
+    Service Representatives and Service Engineers are granted a set of
+    rights to allow them to manage the incoming tickets and make changes to
+    the tickets as required.
+
+    <p>TODO: image for rep/eng group rights<img width="500px"
+    src="https://static.bestpractical.com/images/customerservice/rep_eng_gro
+    up_rights.png" alt="Group rights for 'Service Representatives' and
+    'Service Engineers' groups on 'Service' queue" /></p>
+
+    Service Managers are granted a set of rights to view tickets but not
+    make any changes to the tickets.
+
+    <p>TODO: image for manager group rights<img width="500px"
+    src="https://static.bestpractical.com/images/customerservice/manager_gro
+    up_rights.png" alt="Group rights for 'Service Managers' group on
+    'Service' queue" /></p>
+
+  Service Lifecycle
+    RT allows you to create and configure custom workflows for each queue in
+    the system. In RT a ticket workflow is known as a Lifecycle
+    <https://docs.bestpractical.com/rt/latest/customizing/lifecycles.html>.
+    This extension provies a custom lifecycle called "service" that defines
+    the various statuses a ticket can be in.
+
+  Custom Fields
+    RT allows you to define custom fields on tickets, which can be anything
+    you need to record and track. This extension provides some common to
+    customer service: Customer, Severity, Product, Serial Number, and
+    Warranty Required.
+
+    Customer is an autocomplete type field, which means users can type in
+    the box and if there is a defined value, it will autocomplete in a menu
+    below the field. If the user needs to add a value that hasn't been used
+    before, they can type in a completely new value. If you would prefer
+    this to be a dropdown like Severity, you can change this in the admin
+    section also.
+
+    Severity is a dropdown with typical High, Medium, Low values. As an RT
+    admin, you can change these values or add to them at Admin > Custom
+    Fields, then click on Severity.
+
+    Product is an autocomplete type field, which means users can type in the
+    box and if there is a defined value, it will autocomplete in a menu
+    below the field. If the user needs to add a value that hasn't been used
+    before, they can type in a completely new value. If you would prefer
+    this to be a dropdown like Severity, you can change this in the admin
+    section also.
+
+    Serial Number is a simple text field that will allow the user to type in
+    a single value.
+
+    Warranty Required is a dropdown with Yes or No values. As an RT admin,
+    you can change these values or add to them at Admin > Custom Fields,
+    then click on Warranty Required.
+
+  Service Dashboard
+    This extension creates a dashboard called "Service", accessible to any
+    member of the Service Representative group. This dashboard has a default
+    saved search called "Highest severity tickets waiting on customer
+    service".
+
+    As the name suggests, this saved search shows all tickets waiting for
+    customer service and displays them in order by severity, so the most
+    important will be at the top.
+
+  Next Steps
+    This extension provides a good starting point and you can start using it
+    right away. Here are some additional things you can do to customize your
+    configuration:
+
+    *   Create new user accounts for other staff and add them to one of the
+        new Groups. You might also remove the root user if that user account
+        won't be involved in customer service.
+
+    *   Update the custom fields by changing the values in the dropdowns or
+        adding other custom fields that better fit your system.
+
+    *   Edit your templates to customize the default messages you send to
+        users. You can find templates at Admin > Global > Templates. For
+        example, the "Autoreply in HTML" is the default template that goes
+        to users when they open a ticket.
+
+    *   Users working primarily in customer service can edit their
+        preferences and set Service as their default queue.
+
+    *   Users can select Reports > Update this menu and add the Service
+        dashboard to their reports menu. The RT administrator can do this
+        for all users as well.
+
+AUTHOR
+    Best Practical Solutions, LLC <modules@bestpractical.com>
+
+    All bugs should be reported via email to
+        bug-RT-Extension-CustomerService@rt.cpan.org
+    or via the web at
+        http://rt.cpan.org/Public/Dist/Display.html?Name=RT-Extension-CustomerService
+LICENSE AND COPYRIGHT
+    This software is Copyright (c) 2022 by BPS
+
+    This is free software, licensed under:
+
+      The GNU General Public License, Version 2, June 1991
+

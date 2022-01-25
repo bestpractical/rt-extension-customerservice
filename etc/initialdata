@@ -1,0 +1,363 @@
+use strict;
+use warnings;
+
+our @Queues = (
+    {
+        Name         => 'Service',
+        Description  => 'Queue for triaging customer service tickets.',
+        Lifecycle    => 'service',
+    },
+    {
+        Name         => 'Supplier',
+        Description  => 'Queue for tickets related to customer service tickets that need supplier support or warranty.',
+        Lifecycle    => 'supplier',
+    },
+);
+
+our @Groups = (
+    {
+        Name        => 'Service Engineers',
+        Description => 'Group for customer service engineers.',
+    },
+    {
+        Name        => 'Service Managers',
+        Description => 'Group for customer service managers.',
+    },
+    {
+        Name        => 'Service Representatives',
+        Description => 'Group for customer service representatives.',
+    },
+);
+
+my @EveryoneRights = qw/CreateTicket SeeQueue/;
+our @ACL = map {
+    {
+        Right       => $_,
+        Queue       => 'Service',
+        GroupDomain => 'SystemInternal',
+        GroupType   => 'Everyone'
+    },
+} @EveryoneRights;
+
+my @RequestorRights = qw/ShowTicket ReplyToTicket/;
+push @ACL, map {
+    {
+        Right       => $_,
+        Queue       => 'Service',
+        GroupDomain => 'RT::Queue-Role',
+        GroupType   => 'Requestor',
+    },
+    {
+        Right       => $_,
+        Queue       => 'Supplier',
+        GroupDomain => 'RT::Queue-Role',
+        GroupType   => 'Requestor',
+    },
+} @RequestorRights;
+
+my @ServiceEngsAndRepsRights = qw/CommentOnTicket Watch SeeCustomField
+  SeeQueue ShowTicket OwnTicket WatchAsAdminCC StealTicket TakeTicket
+  ShowTicketComments ModifyTicket ModifyCustomField ShowOutgoingEmail
+  CreateTicket ReplyToTicket ReassignTicket
+/;
+push @ACL, map {
+    {
+        Right       => $_,
+        Queue       => 'Service',
+        GroupDomain => 'UserDefined',
+        GroupId     => 'Service Engineers',
+    },
+    {
+        Right       => $_,
+        Queue       => 'Service',
+        GroupDomain => 'UserDefined',
+        GroupId     => 'Service Representatives',
+    },
+    {
+        Right       => $_,
+        Queue       => 'Supplier',
+        GroupDomain => 'UserDefined',
+        GroupId     => 'Service Engineers',
+    },
+    {
+        Right       => $_,
+        Queue       => 'Supplier',
+        GroupDomain => 'UserDefined',
+        GroupId     => 'Service Representatives',
+    },
+} @ServiceEngsAndRepsRights;
+
+my @ServiceManagersRights = qw/SeeCustomField SeeQueue ShowTicket
+  WatchAsAdminCc ShowOutgoingEmail ShowTicketComments DeleteTicket
+/;
+push @ACL, map {
+    {
+        Right       => $_,
+        Queue       => 'Service',
+        GroupDomain => 'UserDefined',
+        GroupId     => 'Service Managers',
+    },
+    {
+        Right       => $_,
+        Queue       => 'Supplier',
+        GroupDomain => 'UserDefined',
+        GroupId     => 'Service Managers',
+    },
+} @ServiceManagersRights;
+
+our @CustomFields = (
+    {
+        Name        => 'Customer',
+        Type        => 'AutocompleteSingle',
+        LookupType  => 'RT::Queue-RT::Ticket',
+        Description => 'The customer with the issue',
+        EntryHint   => 'The customer with the issue',
+        ApplyTo     => 'Service',
+        Values      => [],
+    },
+    {
+        Name        => 'Order #',
+        Type        => 'FreeformSingle',
+        LookupType  => 'RT::Queue-RT::Ticket',
+        Description => 'The customer order for the product with an issue',
+        EntryHint   => 'The customer order for the product with an issue',
+        ApplyTo     => 'Service',
+        Values      => [],
+    },
+    {
+        Name        => 'Product',
+        Type        => 'AutocompleteSingle',
+        LookupType  => 'RT::Queue-RT::Ticket',
+        Description => 'The product with an issue',
+        EntryHint   => 'The product with an issue',
+        ApplyTo     => ['Service','Supplier'],
+        Values      => [],
+    },
+    {
+        Name        => 'Serial #',
+        Type        => 'FreeformSingle',
+        LookupType  => 'RT::Queue-RT::Ticket',
+        Description => 'The serial number for the product with an issue',
+        EntryHint   => 'The serial number for the product with an issue',
+        ApplyTo     => ['Service','Supplier'],
+        Values      => [],
+    },
+    {
+        Name        => 'Severity',
+        Type        => 'SelectSingle',
+        LookupType  => 'RT::Queue-RT::Ticket',
+        Description => 'The severity of the issue',
+        EntryHint   => 'The severity of the issue',
+        ApplyTo     => 'Service',
+        RenderType  => 'Dropdown',
+        Values      => [
+            { Name => 'Low',    SortOrder => 1 },
+            { Name => 'Medium', SortOrder => 2 },
+            { Name => 'High',   SortOrder => 3 },
+        ],
+    },
+    {
+        Name        => 'Supplier',
+        Type        => 'AutocompleteSingle',
+        LookupType  => 'RT::Queue-RT::Ticket',
+        Description => 'The supplier for the product with an issue',
+        EntryHint   => 'The supplier for the product with an issue',
+        ApplyTo     => ['Service','Supplier'],
+        Values      => [],
+    },
+    {
+        Name        => 'Supplier PO #',
+        Type        => 'FreeformSingle',
+        LookupType  => 'RT::Queue-RT::Ticket',
+        Description => 'The supplier purchase order that contained the product with an issue',
+        EntryHint   => 'The supplier purchase order that contained the product with an issue',
+        ApplyTo     => ['Service','Supplier'],
+        Values      => [],
+    },
+    {
+        Name        => 'Supplier Warranty Order #',
+        Type        => 'FreeformSingle',
+        LookupType  => 'RT::Queue-RT::Ticket',
+        Description => 'The supplier order with a replacement for the product with an issue',
+        EntryHint   => 'The supplier order with a replacement for the product with an issue',
+        ApplyTo     => 'Supplier',
+        Values      => [],
+    },
+    {
+        Name        => 'Warranty Required',
+        Type        => 'SelectSingle',
+        LookupType  => 'RT::Queue-RT::Ticket',
+        Description => 'Does the product issue qualify for warranty replacement of the product',
+        EntryHint   => 'Does the product issue qualify for warranty replacement of the product',
+        ApplyTo     => ['Service','Supplier'],
+        RenderType  => 'List',
+        Values      => [
+            { Name => 'No',  SortOrder => 1 },
+            { Name => 'Yes', SortOrder => 2 },
+        ],
+    },
+    {
+        Name        => 'Warranty Order #',
+        Type        => 'FreeformSingle',
+        LookupType  => 'RT::Queue-RT::Ticket',
+        Description => 'The order with a replacement for the product with an issue',
+        EntryHint   => 'The order with a replacement for the product with an issue',
+        ApplyTo     => 'Service',
+        Values      => [],
+    },
+);
+
+our @Attributes = (
+    {
+        Name        => 'SavedSearch',
+        Description => 'Highest severity tickets waiting on service',
+        Object      => sub {
+            my $GroupName = 'Service Representatives';
+            my $group     = RT::Group->new( RT->SystemUser );
+
+            my( $ret, $msg ) = $group->LoadUserDefinedGroup( $GroupName );
+            die $msg unless $ret;
+
+            return $group;
+        },
+        Content     => {
+            Format => qq['<b><a href="__WebPath__/Ticket/Display.html?id=__id__">__id__</a></b>/TITLE:#',
+'<b><a href="__WebPath__/Ticket/Display.html?id=__id__">__Subject__</a></b>/TITLE:Subject',
+Status,
+'__CustomFieldView.{Severity}__',
+Priority,
+'__NEWLINE__',
+'__NBSP__',
+'<small>__Requestors__</small>',
+'<small>__CreatedRelative__</small>',
+Owner,
+'__CustomField.{Customer}__'],
+            Query   => "( Queue = 'Service' OR Queue = 'Supplier' ) AND (  Status = 'waiting for service' OR Status = 'open' OR Status = 'new' )",
+            OrderBy => 'CustomFieldView.{Severity}',
+            Order   => 'DESC'
+        },
+    },
+    {
+        Name        => 'SavedSearch',
+        Description => 'Highest severity tickets waiting on engineer',
+        Object      => sub {
+            my $GroupName = 'Service Engineers';
+            my $group     = RT::Group->new( RT->SystemUser );
+
+            my( $ret, $msg ) = $group->LoadUserDefinedGroup( $GroupName );
+            die $msg unless $ret;
+
+            return $group;
+        },
+        Content     => {
+            Format => qq['<b><a href="__WebPath__/Ticket/Display.html?id=__id__">__id__</a></b>/TITLE:#',
+'<b><a href="__WebPath__/Ticket/Display.html?id=__id__">__Subject__</a></b>/TITLE:Subject',
+Status,
+'__CustomFieldView.{Severity}__',
+Priority,
+'__NEWLINE__',
+'__NBSP__',
+'<small>__Requestors__</small>',
+'<small>__CreatedRelative__</small>',
+Owner,
+'__CustomField.{Customer}__'],
+            Query   => "( Queue = 'Service' OR Queue = 'Supplier' ) AND Status = 'waiting for engineer'",
+            OrderBy => 'CustomFieldView.{Severity}',
+            Order   => 'DESC'
+        },
+    },
+);
+
+our @Final = (
+    sub {
+        for my $new_group ( 'Service Engineers', 'Service Managers', 'Service Representatives' ) {
+            my $GroupName = $new_group;
+            my $group     = RT::Group->new( RT->SystemUser );
+
+            my ( $ret, $msg ) = $group->LoadUserDefinedGroup( $GroupName );
+            die $msg unless $ret;
+
+            my $root = RT::User->new( RT->SystemUser );
+            $root->Load( 'root' );
+
+            ($ret, $msg) =  $group->AddMember( $root->PrincipalObj->Id );
+            print "Could not load root user: $msg\n" unless $ret;
+
+            foreach my $right ( qw/SeeGroup SeeGroupDashboard ShowSavedSearches/ ) {
+                ($ret, $msg) = $group->PrincipalObj->GrantRight( Right => $right, Object => $group );
+                print "Failed to grant right $right: $msg\n" unless $ret;
+            }
+
+            # Create dashboard for service representative group
+            if ( $new_group eq 'Service Representatives' ) {
+                my $dashboard = RT::Dashboard->new( RT->SystemUser );
+                ($ret, $msg) = $dashboard->Save(
+                    Name    => 'Highest severity waiting for service',
+                    Privacy => 'RT::Group-'.$group->Id,
+                );
+                die "Could not create dashboard! $msg\n" unless $ret;
+
+                my $saved_search = RT::Attribute->new( RT->SystemUser );
+                ($ret, $msg) = $saved_search->LoadByCols(
+                  Name        => 'SavedSearch',
+                  Description => 'Highest severity tickets waiting on service',
+                  ObjectType  => 'RT::Group',
+                  ObjectId    => $group->Id,
+                );
+                die "Could not load highest severity saved search: $msg" unless $ret;
+
+                ($ret, $msg) = $dashboard->Update( Panes => {
+                    body => [
+                        {
+                            description    => "Saved Search: Highest severity tickets waiting on service",
+                            id             => $saved_search->Id,
+                            pane           => "body",
+                            portlet_type   => "search",
+                            privacy        => "RT::Group-".$group->Id
+                        }
+                    ],
+                    sidebar => [
+                    ]
+                });
+                die "$msg" unless $ret;
+            }
+            elsif ( $new_group eq 'Service Engineers' ) {
+                my $dashboard = RT::Dashboard->new( RT->SystemUser );
+                ($ret, $msg) = $dashboard->Save(
+                    Name    => 'Highest severity waiting for engineer',
+                    Privacy => 'RT::Group-'.$group->Id,
+                );
+                die "Could not create dashboard! $msg\n" unless $ret;
+
+                my $saved_search = RT::Attribute->new( RT->SystemUser );
+                ($ret, $msg) = $saved_search->LoadByCols(
+                  Name        => 'SavedSearch',
+                  Description => 'Highest severity tickets waiting on engineer',
+                  ObjectType  => 'RT::Group',
+                  ObjectId    => $group->Id,
+                );
+                die "Could not load highest severity engineer saved search: $msg" unless $ret;
+
+                ($ret, $msg) = $dashboard->Update( Panes => {
+                    body => [
+                        {
+                            description    => "Saved Search: Highest severity tickets waiting on engineer",
+                            id             => $saved_search->Id,
+                            pane           => "body",
+                            portlet_type   => "search",
+                            privacy        => "RT::Group-".$group->Id
+                        }
+                    ],
+                    sidebar => [
+                    ]
+                });
+                die "$msg" unless $ret;
+            }
+        }
+    },
+    sub {
+        my $cf = RT::CustomField->new( RT->SystemUser );
+        $cf->LoadByName( Name => 'Warranty Required' );
+        $cf->SetDefaultValues( Values => 'No' );
+    },
+);
